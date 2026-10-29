@@ -1,0 +1,12 @@
+# Moi truong ao Python
+venv/
+env/
+__pycache__/
+*.pyc
+
+# File bao mat
+.env
+
+# Thu muc chua file 3D tao ra khi chay
+outputs/*
+!outputs/.gitkeep
