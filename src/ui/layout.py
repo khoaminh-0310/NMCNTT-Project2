@@ -35,3 +35,6 @@ def create_ui():
 
     # Trả về các thành phần để file chính (app.py) có thể điều khiển được
     return demo, image_input, btn_generate, model_output, status_box
+    if __name__ == "__main__":
+    demo, *_ = create_ui()
+    demo.launch()
