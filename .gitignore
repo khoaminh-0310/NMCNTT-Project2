@@ -28,3 +28,7 @@ scratch/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Documentation kept outside project
+docs/
+
