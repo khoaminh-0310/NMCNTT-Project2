@@ -1,12 +1,30 @@
-# Moi truong ao Python
+# Python virtual environments
 venv/
+.venv/
 env/
+ENV/
+
+# Byte-compiled / cache files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
 
-# File bao mat
+# Environment and sensitive secrets (Bảo mật - Không đẩy lên GitHub)
 .env
+.env.local
 
-# Thu muc chua file 3D tao ra khi chay
-outputs/*
+# Application outputs and temporary files
+outputs/*.glb
 !outputs/.gitkeep
+uploads/*
+
+# Testing & scratch files
+.coverage
+htmlcov/
+scratch/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+Desktop.ini
