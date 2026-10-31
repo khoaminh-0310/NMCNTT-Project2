@@ -28,10 +28,15 @@ def create_ui():
                 model_output = gr.Model3D(
                     label="Mô hình 3D tương tác",
                 )
+                btn_download = gr.DownloadButton(
+                    "Tải mô hình 3D (.glb)",
+                    variant="secondary",
+                    size="lg",
+                )
                 status_box = gr.Textbox(
                     label="Thông báo hệ thống",
                     interactive=False,
                 )
 
     # Trả về các thành phần để file chính (app.py) có thể điều khiển được
-    return demo, image_input, btn_generate, model_output, status_box
+    return demo, image_input, btn_generate, model_output, status_box, btn_download

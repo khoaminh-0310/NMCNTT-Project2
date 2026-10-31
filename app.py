@@ -95,7 +95,7 @@ def on_click(img_path: str):
 
     # Trường hợp 1: Có lỗi (ảnh không hợp lệ hoặc thiếu ảnh)
     if not result.success:
-        return None, f"❌ {result.message}"
+        return None, f"❌ {result.message}", None
 
     # Trường hợp 2: Chế độ giả lập (Mock Mode) - Tuân thủ Mục 6.2 Tài liệu kỹ thuật
     if result.is_mock:
@@ -109,18 +109,18 @@ def on_click(img_path: str):
             f"Thành công: Đã tạo mô hình 3D từ mô hình TRELLIS trong {result.inference_time:.1f} giây."
         )
 
-    return result.glb_path, status_msg
+    return result.glb_path, status_msg, result.glb_path
 
 
 # --- KHỞI TẠO GIAO DIỆN ---
-demo, image_input, btn_generate, model_output, status_box = create_ui()
+demo, image_input, btn_generate, model_output, status_box, btn_download = create_ui()
 
 with demo:
     # Liên kết sự kiện click của nút bấm với hàm on_click
     btn_generate.click(
         fn=on_click,
         inputs=[image_input],
-        outputs=[model_output, status_box],
+        outputs=[model_output, status_box, btn_download],
     )
 
 # Chạy ứng dụng
