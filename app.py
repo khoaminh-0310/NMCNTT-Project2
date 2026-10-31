@@ -115,12 +115,13 @@ def on_click(img_path: str):
 # --- KHỞI TẠO GIAO DIỆN ---
 demo, image_input, btn_generate, model_output, status_box = create_ui()
 
-# Liên kết sự kiện click của nút bấm với hàm on_click
-btn_generate.click(
-    fn=on_click,
-    inputs=[image_input],
-    outputs=[model_output, status_box],
-)
+with demo:
+    # Liên kết sự kiện click của nút bấm với hàm on_click
+    btn_generate.click(
+        fn=on_click,
+        inputs=[image_input],
+        outputs=[model_output, status_box],
+    )
 
 # Chạy ứng dụng
 if __name__ == "__main__":

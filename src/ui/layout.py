@@ -14,27 +14,24 @@ def create_ui():
                 gr.Markdown("### 📥 Đầu vào")
                 image_input = gr.Image(
                     type="filepath",
-                    label="Tải ảnh 2D lên"
+                    label="Tải ảnh 2D lên",
                 )
                 btn_generate = gr.Button(
                     "Bắt đầu tạo 3D",
                     variant="primary",
-                    size="lg"
+                    size="lg",
                 )
 
             # --- CỘT BÊN PHẢI: Khu vực hiển thị kết quả ---
             with gr.Column(scale=1):
                 gr.Markdown("### 👁️ Kết quả")
                 model_output = gr.Model3D(
-                    label="Mô hình 3D tương tác"
+                    label="Mô hình 3D tương tác",
                 )
                 status_box = gr.Textbox(
                     label="Thông báo hệ thống",
-                    interactive=False
+                    interactive=False,
                 )
 
     # Trả về các thành phần để file chính (app.py) có thể điều khiển được
     return demo, image_input, btn_generate, model_output, status_box
-    if __name__ == "__main__":
-    demo, *_ = create_ui()
-    demo.launch()
