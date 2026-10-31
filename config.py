@@ -25,6 +25,16 @@ DEFAULT_SAMPLE_MODEL_PATH: Final[str] = os.path.join(DEFAULT_ASSETS_DIR, "sample
 DEFAULT_HF_SPACE_ID: Final[str] = "microsoft/TRELLIS"
 API_TIMEOUT_SECONDS: Final[int] = 120
 
+# --- Load .env file if present ---
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+if os.path.exists(_env_path):
+    with open(_env_path, "r", encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ[_k.strip()] = _v.strip()
+
 # Environment variables (overridable via .env or system environment)
 HF_SPACE_ID: str = os.getenv("HF_SPACE_ID", DEFAULT_HF_SPACE_ID)
 HF_TOKEN: str = os.getenv("HF_TOKEN", "")
