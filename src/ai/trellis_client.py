@@ -1,9 +1,17 @@
+# src/ai/trellis_client.py
+"""Hugging Face TRELLIS Client with Real-time Status Callbacks and Graceful Fallback.
+
+Author: Lê Bá Thi (26127431) - AI Model & Inference.
+Team: ae cây khế - Course: CSC00004 - Class: 26C05.
+"""
+
 import logging
 import os
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from pathlib import Path
+from typing import Callable, Optional
 
 from src.ai.mock_service import run_mock_inference
 from src.core.contracts import GenerationResult
@@ -15,14 +23,97 @@ _API_NAME = "/generate_and_extract_glb"
 _REQUEST_TIMEOUT_SECONDS = int(os.getenv("API_TIMEOUT_SECONDS", "300"))
 _LOGGER = logging.getLogger(__name__)
 
+StatusCallback = Optional[Callable[[str, str], None]]
 
-def _predict(image_path: str) -> object:
+
+def _notify(callback: StatusCallback, message: str, detail: str = "") -> None:
+    """Safely invoke UI status callback if provided."""
+    if callback is not None:
+        try:
+            callback(message, detail)
+        except Exception:
+            pass
+
+
+def _monitor_job(
+    job,
+    stage_title: str,
+    stage_detail: str,
+    timeout_sec: int,
+    status_callback: StatusCallback = None,
+) -> object:
+    """Poll a gradio_client Job and stream real-time queue/GPU progress to status_callback."""
+    start_wait = time.time()
+    last_reported = ("", "")
+
+    while not job.done():
+        if time.time() - start_wait > timeout_sec:
+            job.cancel()
+            raise TimeoutError(
+                f"TRELLIS inference exceeded {timeout_sec} seconds ({timeout_sec // 60} phút)"
+            )
+
+        msg = stage_title
+        detail = stage_detail
+        try:
+            status = job.status()
+            code = getattr(status.code, "value", str(status.code))
+
+            if code in ("STARTING", "JOINING_QUEUE", "SENDING_DATA"):
+                msg = f"⏳ {stage_title}"
+                detail = "Đang gửi dữ liệu ảnh lên máy chủ Hugging Face..."
+            elif code == "IN_QUEUE":
+                if getattr(status, "rank", None) is not None and getattr(status, "queue_size", None):
+                    msg = f"⏳ Đang xếp hàng đợi GPU (Vị trí #{status.rank + 1}/{status.queue_size})"
+                elif getattr(status, "rank", None) is not None:
+                    msg = f"⏳ Đang xếp hàng đợi GPU (Vị trí #{status.rank + 1})"
+                else:
+                    msg = "⏳ Đang chờ cấp phát tài nguyên ZeroGPU..."
+
+                eta = getattr(status, "rank_eta", None)
+                if eta is not None and eta > 0:
+                    detail = f"{stage_title} • Ước tính chờ: ~{int(eta)}s"
+                else:
+                    detail = f"{stage_title} • Đang đợi đến lượt xử lý trên Hugging Face"
+            elif code in ("PROCESSING", "PROGRESS", "ITERATING"):
+                msg = f"⚡ {stage_title}"
+                progress_data = getattr(status, "progress_data", None)
+                if progress_data:
+                    unit = progress_data[-1]
+                    unit_desc = getattr(unit, "desc", None)
+                    unit_prog = getattr(unit, "progress", None)
+                    if unit_desc and unit_prog is not None:
+                        detail = f"{unit_desc} ({int(unit_prog * 100)}%)"
+                    elif unit_desc:
+                        detail = str(unit_desc)
+                    elif unit_prog is not None:
+                        detail = f"{stage_detail} ({int(unit_prog * 100)}%)"
+        except Exception:
+            pass
+
+        if (msg, detail) != last_reported:
+            last_reported = (msg, detail)
+            _notify(status_callback, msg, detail)
+
+        time.sleep(0.25)
+
+    return job.result()
+
+
+def _predict(image_path: str, status_callback: StatusCallback = None) -> object:
     from gradio_client import Client, handle_file
     import config
 
     config.reload_env()
     space_id = os.getenv("HF_SPACE_ID", _SPACE_ID)
-    token = os.getenv("HF_TOKEN")
+    token = os.getenv("HF_TOKEN") or None
+    timeout_sec = int(os.getenv("API_TIMEOUT_SECONDS", str(_REQUEST_TIMEOUT_SECONDS)))
+
+    _notify(
+        status_callback,
+        f"🌐 Đang kết nối tới Hugging Face ({space_id})...",
+        "Khởi tạo phiên làm việc với máy chủ AI TRELLIS",
+    )
     client = Client(space_id, token=token, verbose=False)
 
     named_endpoints = {
@@ -30,14 +121,44 @@ def _predict(image_path: str) -> object:
     }
 
     if _API_NAME in named_endpoints:
-        return client.predict(handle_file(image_path), api_name=_API_NAME)
+        _notify(
+            status_callback,
+            "⚡ Đang tạo và trích xuất mô hình 3D...",
+            "Gửi tác vụ tới endpoint /generate_and_extract_glb",
+        )
+        job = client.submit(handle_file(image_path), api_name=_API_NAME)
+        return _monitor_job(
+            job,
+            "Đang dựng mô hình 3D trên máy chủ AI",
+            "Xử lý pipeline tổng hợp TRELLIS",
+            timeout_sec,
+            status_callback,
+        )
 
     if "/extract_glb" in named_endpoints and "/preprocess_image" in named_endpoints:
-        preprocessed = client.predict(
+        _notify(
+            status_callback,
+            "⏳ Bước 1/3: Đang tiền xử lý ảnh đầu vào...",
+            "Tách nền (Background Removal) và căn chỉnh vật thể 2D",
+        )
+        job1 = client.submit(
             input=handle_file(image_path),
             api_name="/preprocess_image",
         )
-        client.predict(
+        preprocessed = _monitor_job(
+            job1,
+            "Bước 1/3: Đang tiền xử lý ảnh đầu vào",
+            "Tách nền và chuẩn hóa kích thước vật thể",
+            timeout_sec,
+            status_callback,
+        )
+
+        _notify(
+            status_callback,
+            "⚡ Bước 2/3: Đang sinh cấu trúc hình học 3D (SLAT)...",
+            "Chạy 12 bước lấy mẫu Diffusion trên ZeroGPU",
+        )
+        job2 = client.submit(
             image=handle_file(preprocessed),
             seed=0,
             resolution="1024",
@@ -55,19 +176,46 @@ def _predict(image_path: str) -> object:
             tex_slat_rescale_t=3.0,
             api_name="/image_to_3d",
         )
-        return client.predict(
+        _monitor_job(
+            job2,
+            "Bước 2/3: Đang sinh cấu trúc hình học 3D",
+            "Tạo đám mây điểm và cấu trúc lưới không gian 3D",
+            timeout_sec,
+            status_callback,
+        )
+
+        _notify(
+            status_callback,
+            "🎨 Bước 3/3: Đang trích xuất file GLB & Texture...",
+            "Tối ưu hóa lưới đa giác (Decimation) và phủ bề mặt 2048px",
+        )
+        job3 = client.submit(
             decimation_target=300000,
             texture_size=2048,
             api_name="/extract_glb",
         )
+        return _monitor_job(
+            job3,
+            "Bước 3/3: Đang trích xuất file GLB & Texture",
+            "Đóng gói mô hình 3D hoàn chỉnh (.glb)",
+            timeout_sec,
+            status_callback,
+        )
 
-    return client.predict(handle_file(image_path))
+    job = client.submit(handle_file(image_path))
+    return _monitor_job(
+        job,
+        "Đang xử lý tạo mô hình 3D trên Hugging Face",
+        "Đang chờ phản hồi từ máy chủ AI",
+        timeout_sec,
+        status_callback,
+    )
 
 
-def _predict_with_timeout(image_path: str) -> object:
+def _predict_with_timeout(image_path: str, status_callback: StatusCallback = None) -> object:
     timeout_sec = int(os.getenv("API_TIMEOUT_SECONDS", "300"))
     executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(_predict, image_path)
+    future = executor.submit(_predict, image_path, status_callback)
     try:
         return future.result(timeout=timeout_sec)
     except FutureTimeoutError as exc:
@@ -115,19 +263,37 @@ def _classify_inference_error(exc: Exception) -> str:
     return f"Không thể kết nối hoặc máy chủ AI không phản hồi ({type(exc).__name__})."
 
 
-def run_inference_with_detail(image_path: str) -> tuple[str, bool, str | None]:
-    """Execute 3D reconstruction inference with automatic fallback and classification."""
+def run_inference_streaming(
+    image_path: str,
+    status_callback: StatusCallback = None,
+) -> tuple[str, bool, str | None]:
+    """Execute 3D reconstruction with live status callbacks and automatic fallback."""
     try:
-        result = _predict_with_timeout(image_path)
+        result = _predict_with_timeout(image_path, status_callback=status_callback)
+        _notify(
+            status_callback,
+            "💾 Đang lưu mô hình 3D về máy cục bộ...",
+            "Sao chép kết quả vào thư mục outputs/",
+        )
         source_path = _glb_path_from_result(result)
         output_path = Path(generate_output_path("trellis_result.glb"))
         shutil.copyfile(source_path, output_path)
         return str(output_path), False, None
     except Exception as exc:
         _LOGGER.exception("TRELLIS inference failed; using the mock model instead")
-        mock_path, is_mock = run_mock_inference(image_path)
         reason = _classify_inference_error(exc)
+        _notify(
+            status_callback,
+            "⚠️ Máy chủ AI bận/hết quota — Đang chuyển sang mô hình dự phòng...",
+            reason,
+        )
+        mock_path, is_mock = run_mock_inference(image_path)
         return mock_path, is_mock, reason
+
+
+def run_inference_with_detail(image_path: str) -> tuple[str, bool, str | None]:
+    """Execute 3D reconstruction inference with automatic fallback and classification."""
+    return run_inference_streaming(image_path, status_callback=None)
 
 
 def run_inference(image_path: str) -> tuple[str, bool]:
