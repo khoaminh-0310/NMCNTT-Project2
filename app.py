@@ -20,6 +20,7 @@ from src.ui.layout import create_ui
 
 def main_process(img_path: str) -> GenerationResult:
     """Xử lý chính: Kiểm tra ảnh đầu vào và điều phối giữa Mock Mode và AI."""
+    config.reload_env()
     start_time = time.time()
 
     # 1. Kiểm tra ảnh rỗng
@@ -97,11 +98,18 @@ def on_click(img_path: str):
     if not result.success:
         return None, f"❌ {result.message}", None
 
-    # Trường hợp 2: Chế độ giả lập (Mock Mode) - Tuân thủ Mục 6.2 Tài liệu kỹ thuật
+    # Trường hợp 2: Chế độ giả lập (Mock Mode) hoặc Kích hoạt Dự phòng (Fallback)
     if result.is_mock:
+        if config.MOCK_MODE:
+            detail = "Hệ thống đang chủ động bật chế độ giả lập cục bộ (MOCK_MODE=true)."
+        elif result.message and result.message != "Đã tải xong mô hình bằng dữ liệu mẫu cục bộ.":
+            detail = result.message
+        else:
+            detail = "Hệ thống đang bật chế độ dự phòng do máy chủ AI không phản hồi."
+
         status_msg = (
-            "[CHẾ ĐỘ MÔ PHỎNG / MOCK]: Đây là mô hình 3D mẫu (assets/sample_model.glb) "
-            "do hệ thống đang bật chế độ dự phòng hoặc API không phản hồi."
+            f"ℹ️ [CHẾ ĐỘ MÔ PHỎNG / DỰ PHÒNG]: Đang sử dụng mô hình 3D mẫu ({config.DEFAULT_SAMPLE_MODEL_PATH}).\n"
+            f"⚠️ Chi tiết: {detail}"
         )
     # Trường hợp 3: AI thật chạy thành công - Tuân thủ Mục 6.2 Tài liệu kỹ thuật
     else:
@@ -125,4 +133,5 @@ with demo:
 
 # Chạy ứng dụng
 if __name__ == "__main__":
+    demo.queue()
     demo.launch(server_name="127.0.0.1", server_port=7860)
