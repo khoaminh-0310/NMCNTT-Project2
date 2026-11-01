@@ -12,13 +12,15 @@ from src.core.file_manager import generate_output_path
 
 _SPACE_ID = os.getenv("HF_SPACE_ID", "microsoft/TRELLIS.2")
 _API_NAME = "/generate_and_extract_glb"
-_REQUEST_TIMEOUT_SECONDS = int(os.getenv("API_TIMEOUT_SECONDS", "180"))
+_REQUEST_TIMEOUT_SECONDS = int(os.getenv("API_TIMEOUT_SECONDS", "300"))
 _LOGGER = logging.getLogger(__name__)
 
 
 def _predict(image_path: str) -> object:
     from gradio_client import Client, handle_file
+    import config
 
+    config.reload_env()
     space_id = os.getenv("HF_SPACE_ID", _SPACE_ID)
     token = os.getenv("HF_TOKEN")
     client = Client(space_id, token=token, verbose=False)
@@ -63,14 +65,15 @@ def _predict(image_path: str) -> object:
 
 
 def _predict_with_timeout(image_path: str) -> object:
+    timeout_sec = int(os.getenv("API_TIMEOUT_SECONDS", "300"))
     executor = ThreadPoolExecutor(max_workers=1)
     future = executor.submit(_predict, image_path)
     try:
-        return future.result(timeout=_REQUEST_TIMEOUT_SECONDS)
+        return future.result(timeout=timeout_sec)
     except FutureTimeoutError as exc:
         future.cancel()
         raise TimeoutError(
-            f"TRELLIS inference exceeded {_REQUEST_TIMEOUT_SECONDS} seconds"
+            f"TRELLIS inference exceeded {timeout_sec} seconds ({timeout_sec // 60} phút)"
         ) from exc
     finally:
         executor.shutdown(wait=False)
@@ -94,17 +97,43 @@ def _glb_path_from_result(result: object) -> Path:
     return path
 
 
-def run_inference(image_path: str) -> tuple[str, bool]:
-    """Execute 3D reconstruction inference with automatic fallback to mock."""
+def _classify_inference_error(exc: Exception) -> str:
+    """Classify external AI error into human-readable Vietnamese explanation."""
+    msg = str(exc).lower()
+    if "zerogpu" in msg or "quota" in msg or "limit" in msg:
+        return (
+            "Tài khoản Hugging Face đã dùng hết hạn mức thời lượng ZeroGPU miễn phí trong ngày "
+            "(ZeroGPU Quota Exceeded). Bạn có thể đổi token từ tài khoản khác hoặc chờ hệ thống reset."
+        )
+    if "config_error" in msg:
+        return "Space AI trên Hugging Face đang bảo trì (CONFIG_ERROR). Vui lòng thử lại sau."
+    if "unauthorized" in msg or "401" in msg or "invalid token" in msg:
+        return "Hugging Face Access Token không hợp lệ hoặc thiếu quyền đọc."
+    if "timeout" in msg:
+        timeout_sec = int(os.getenv("API_TIMEOUT_SECONDS", "300"))
+        return f"Quá thời gian chờ phản hồi từ máy chủ AI ({timeout_sec // 60} phút Timeout)."
+    return f"Không thể kết nối hoặc máy chủ AI không phản hồi ({type(exc).__name__})."
+
+
+def run_inference_with_detail(image_path: str) -> tuple[str, bool, str | None]:
+    """Execute 3D reconstruction inference with automatic fallback and classification."""
     try:
         result = _predict_with_timeout(image_path)
         source_path = _glb_path_from_result(result)
         output_path = Path(generate_output_path("trellis_result.glb"))
         shutil.copyfile(source_path, output_path)
-        return str(output_path), False
-    except Exception:
+        return str(output_path), False, None
+    except Exception as exc:
         _LOGGER.exception("TRELLIS inference failed; using the mock model instead")
-        return run_mock_inference(image_path)
+        mock_path, is_mock = run_mock_inference(image_path)
+        reason = _classify_inference_error(exc)
+        return mock_path, is_mock, reason
+
+
+def run_inference(image_path: str) -> tuple[str, bool]:
+    """Execute 3D reconstruction inference with automatic fallback to mock."""
+    glb_path, is_mock, _ = run_inference_with_detail(image_path)
+    return glb_path, is_mock
 
 
 def generate_3d_from_image(image_path: str) -> GenerationResult:
@@ -114,7 +143,7 @@ def generate_3d_from_image(image_path: str) -> GenerationResult:
     """
     start_time = time.time()
     try:
-        glb_path, is_mock = run_inference(image_path)
+        glb_path, is_mock, fallback_reason = run_inference_with_detail(image_path)
         elapsed = round(time.time() - start_time, 2)
 
         if not glb_path or not os.path.exists(glb_path):
@@ -127,7 +156,7 @@ def generate_3d_from_image(image_path: str) -> GenerationResult:
             )
 
         if is_mock:
-            message = "Đã tải xong mô hình bằng dữ liệu mẫu cục bộ (Mock Mode)."
+            message = fallback_reason or "Đã tải xong mô hình bằng dữ liệu mẫu cục bộ (Mock Mode)."
         else:
             message = "Tạo mô hình 3D từ AI TRELLIS thành công."
 
