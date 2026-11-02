@@ -1,7 +1,7 @@
 # src/ai/trellis_client.py
 """Hugging Face TRELLIS Client with Real-time Status Callbacks and Graceful Fallback.
 
-Author: Lê Bá Thi (26127431) - AI Model & Inference.
+Author duy nhất: Lê Bá Thi (MSSV: 26127431) - Kết nối AI & Inference.
 Team: ae cây khế - Course: CSC00004 - Class: 26C05.
 """
 
