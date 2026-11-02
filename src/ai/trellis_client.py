@@ -106,6 +106,8 @@ def _predict(image_path: str, status_callback: StatusCallback = None) -> object:
 
     config.reload_env()
     space_id = os.getenv("HF_SPACE_ID", _SPACE_ID)
+    if space_id.strip() in ("microsoft/TRELLIS", ""):
+        space_id = "microsoft/TRELLIS.2"
     token = os.getenv("HF_TOKEN") or None
     timeout_sec = int(os.getenv("API_TIMEOUT_SECONDS", str(_REQUEST_TIMEOUT_SECONDS)))
 
