@@ -157,11 +157,51 @@ body {
     gap: 10px;
 }
 
+/* Tiêu đề chính Dimensional AI Studio - Chuẩn Animate UI Shimmering Text */
 .studio-title-text {
-    font-size: 19px;
+    font-size: 24px;
     font-weight: 700;
+    letter-spacing: -0.025em;
+    display: inline-flex;
+    align-items: center;
     color: #fafafa;
-    letter-spacing: -0.02em;
+    line-height: 1.25;
+}
+
+.shimmer-char {
+    display: inline-block;
+    color: #fafafa;
+    animation: animateUiShimmer 2.4s ease-in-out infinite;
+    animation-delay: calc(var(--char-idx) * 0.08s);
+    will-change: color, text-shadow;
+}
+
+.shimmer-space {
+    display: inline-block;
+    width: 0.28em;
+}
+
+@keyframes animateUiShimmer {
+    0%, 100% {
+        color: #fafafa;
+        text-shadow: none;
+    }
+    35% {
+        color: #34d399;
+        text-shadow: 0 0 6px rgba(52, 211, 153, 0.45);
+    }
+    70% {
+        color: #fafafa;
+        text-shadow: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .shimmer-char {
+        animation: none !important;
+        color: #fafafa !important;
+        text-shadow: none !important;
+    }
 }
 
 .studio-badge-model {
@@ -489,5 +529,90 @@ button:disabled,
     color: #a1a1aa;
     margin-top: 6px;
     margin-bottom: 6px;
+}
+
+/* =========================================================================
+   8. ANIMATE UI RIPPLE BUTTON & HOVER STYLES
+   ========================================================================= */
+/* Nút bắt đầu tạo 3D & Nút tải mô hình 3D khi đã kích hoạt */
+.gr-button-primary:not(:disabled),
+button.primary:not(:disabled),
+.gr-button-secondary:not(:disabled),
+button.secondary:not(:disabled) {
+    position: relative !important;
+    overflow: hidden !important;
+    transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), 
+                box-shadow 0.18s cubic-bezier(0.16, 1, 0.3, 1), 
+                background-color 0.18s ease, 
+                border-color 0.18s ease !important;
+}
+
+.gr-button-primary:not(:disabled):hover,
+button.primary:not(:disabled):hover {
+    background-color: #34d399 !important;
+    transform: translateY(-1.5px) scale(1.01) !important;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35), 0 0 10px rgba(52, 211, 153, 0.25) !important;
+}
+
+.gr-button-secondary:not(:disabled):hover,
+button.secondary:not(:disabled):hover {
+    background-color: #27272a !important;
+    border-color: #3f3f46 !important;
+    transform: translateY(-1.5px) scale(1.01) !important;
+    box-shadow: 0 6px 18px rgba(16, 185, 129, 0.25), 0 0 8px rgba(52, 211, 153, 0.18) !important;
+}
+
+/* Hiệu ứng nén nhả chuột (Spring Tap) chuẩn animate-ui (tapScale: 0.97) */
+.gr-button-primary:not(:disabled):active,
+button.primary:not(:disabled):active,
+.gr-button-secondary:not(:disabled):active,
+button.secondary:not(:disabled):active {
+    transform: scale(0.97) !important;
+    transition: transform 0.08s ease !important;
+}
+
+/* Sóng loang tròn Ripple Wave khi click */
+.ripple-button-wave {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    animation: rippleExpand 0.6s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+    background-color: rgba(255, 255, 255, 0.32);
+    pointer-events: none;
+    z-index: 10;
+}
+
+@keyframes rippleExpand {
+    0% {
+        transform: scale(0);
+        opacity: 0.55;
+    }
+    100% {
+        transform: scale(2.8);
+        opacity: 0;
+    }
+}
+
+/* Hover & Ripple cho vùng/nút upload ảnh 2D */
+.image-container,
+[data-testid="image"],
+button.upload-container {
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.image-container:hover,
+[data-testid="image"]:hover,
+button.upload-container:hover {
+    border-color: #34d399 !important;
+    background-color: rgba(16, 185, 129, 0.04) !important;
+    box-shadow: 0 0 16px rgba(16, 185, 129, 0.18) !important;
+}
+
+button.upload-container:hover span,
+button.upload-container:hover svg {
+    color: #34d399 !important;
+    stroke: #34d399 !important;
 }
 """

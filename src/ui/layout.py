@@ -102,6 +102,18 @@ SVG_ALERT = (
 )
 
 
+def render_shimmer_title(text: str) -> str:
+    """Sinh mã HTML hiệu ứng Shimmering Text từng chữ cái chuẩn animate-ui.
+    Từng ký tự nối tiếp nhau bừng sáng màu Laser Emerald kèm vầng hào quang nhẹ."""
+    chars_html = []
+    for i, ch in enumerate(text):
+        if ch == " ":
+            chars_html.append('<span class="shimmer-space">&nbsp;</span>')
+        else:
+            chars_html.append(f'<span class="shimmer-char" style="--char-idx: {i};">{html.escape(ch)}</span>')
+    return f'<span class="studio-title-text">{"".join(chars_html)}</span>'
+
+
 def render_field_label(svg: str, text: str) -> str:
     """Nhãn trường nhập/xuất đặt NGOÀI box.
     Dùng chung markup với tiêu đề 'Thông số mô hình 3D' (class bento-title)
@@ -227,7 +239,7 @@ def render_info_html(
 
 def create_ui():
     """Hàm dựng giao diện 2 cột theo đúng Wireframe và Cẩm nang UI."""
-    with gr.Blocks(title="Dimensional AI Studio (TRELLIS 2.0)", theme=create_studio_theme(), css=CUSTOM_CSS) as demo:
+    with gr.Blocks(title="Dimensional AI Studio", theme=create_studio_theme(), css=CUSTOM_CSS) as demo:
         # Nền ASCII Plasma chạy ngầm full-screen (-z-10)
         gr.HTML(
             value='<div data-aifx="ascii" data-aifx-colors="#059669,#10b981,#34d399,#a7f3d0" data-aifx-glow="0.75" data-aifx-speed="0.35" class="absolute inset-0 pointer-events-none" aria-hidden="true"></div>',
@@ -239,8 +251,7 @@ def create_ui():
         <div class="studio-header">
             <div class="studio-title-area">
                 <div class="studio-title-row">
-                    <span class="studio-title-text">Dimensional AI Studio</span>
-                    <span class="studio-badge-model">TRELLIS 2.0</span>
+                    {render_shimmer_title("Dimensional AI Studio")}
                 </div>
                 <div class="studio-subtitle">
                     Tái tạo mô hình 3D từ ảnh 2D đơn lẻ • Nhóm ae cây khế - Lớp 26C05 - CSC00004

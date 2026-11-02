@@ -415,6 +415,85 @@ if __name__ == "__main__":
         os.path.dirname(__file__), "src", "ui", "assets", "ascii_plasma.js"
     )
     head_parts = []
+    # Nạp Favicon trực tiếp dưới dạng Base64 Data URI để chống cache trình duyệt tuyệt đối
+    assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+    favicon_ico_path = os.path.join(assets_dir, "favicon.ico")
+    favicon_png_path = os.path.join(assets_dir, "favicon-32x32.png")
+    
+    import base64
+    fav_ico_uri = ""
+    fav_png_uri = ""
+    if os.path.exists(favicon_ico_path):
+        with open(favicon_ico_path, "rb") as f:
+            fav_ico_uri = f"data:image/x-icon;base64,{base64.b64encode(f.read()).decode('ascii')}"
+    if os.path.exists(favicon_png_path):
+        with open(favicon_png_path, "rb") as f:
+            fav_png_uri = f"data:image/png;base64,{base64.b64encode(f.read()).decode('ascii')}"
+
+    if fav_png_uri:
+        head_parts.append(f'<link rel="icon" type="image/png" sizes="32x32" href="{fav_png_uri}">')
+    if fav_ico_uri:
+        head_parts.append(f'<link rel="icon" type="image/x-icon" href="{fav_ico_uri}">')
+        head_parts.append(f'<link rel="shortcut icon" type="image/x-icon" href="{fav_ico_uri}">')
+
+    primary_fav_uri = fav_png_uri or fav_ico_uri
+    if primary_fav_uri:
+        fav_type = 'image/png' if fav_png_uri else 'image/x-icon'
+        head_parts.append(f"""
+        <script>
+        (() => {{
+            const uri = "{primary_fav_uri}";
+            const fType = "{fav_type}";
+            function applyFavicon() {{
+                document.querySelectorAll("link[rel*='icon']").forEach(e => e.remove());
+                const link = document.createElement('link');
+                link.type = fType;
+                link.rel = 'icon';
+                link.href = uri;
+                document.head.appendChild(link);
+            }}
+            applyFavicon();
+            if (document.readyState === 'loading') {{
+                document.addEventListener('DOMContentLoaded', applyFavicon);
+            }}
+        }})();
+        </script>
+        """)
+
+    # Tích hợp Animate UI Ripple Button script cho nút Tạo 3D và Nút Tải
+    head_parts.append("""
+    <script>
+    (() => {
+        function attachRipple() {
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('.gr-button-primary:not(:disabled), button.primary:not(:disabled), .gr-button-secondary:not(:disabled), button.secondary:not(:disabled), button.upload-container');
+                if (!btn) return;
+                
+                const rect = btn.getBoundingClientRect();
+                const size = Math.max(rect.width, rect.height) * 2;
+                const x = e.clientX - rect.left - size / 2;
+                const y = e.clientY - rect.top - size / 2;
+                
+                const wave = document.createElement('span');
+                wave.className = 'ripple-button-wave';
+                wave.style.width = size + 'px';
+                wave.style.height = size + 'px';
+                wave.style.left = x + 'px';
+                wave.style.top = y + 'px';
+                
+                btn.appendChild(wave);
+                setTimeout(() => wave.remove(), 600);
+            }, true);
+        }
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', attachRipple);
+        } else {
+            attachRipple();
+        }
+    })();
+    </script>
+    """)
+
     if os.path.exists(ascii_script_path):
         with open(ascii_script_path, "r", encoding="utf-8") as f:
             head_parts.append(f"<script>{f.read()}</script>")
@@ -423,6 +502,7 @@ if __name__ == "__main__":
         theme=create_studio_theme(),
         css=CUSTOM_CSS,
         head="".join(head_parts),
+        favicon_path=favicon_ico_path if os.path.exists(favicon_ico_path) else None,
         server_name="127.0.0.1",
         server_port=7860,
         allowed_paths=[
