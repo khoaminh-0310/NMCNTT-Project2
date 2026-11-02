@@ -1,8 +1,10 @@
 # app.py
 """Entry point for 2D to 3D Web Application (Gradio).
 
+Author duy nhất: Nguyễn Hồng Bảo Trân (MSSV: 26127470) - Giao diện Web (UI/UX).
 Team: ae cây khế - Course: CSC00004 - Class: 26C05.
 Integrates UI layout, Core validator, File manager, and AI/Mock pipeline.
+Strictly adheres to Section 4 & 5.1 of 'Tài liệu kỹ thuật project AI' and Cẩm nang UI.
 """
 
 import os
@@ -19,6 +21,7 @@ from src.core.contracts import GenerationResult
 from src.core.file_manager import generate_output_path
 from src.core.validator import validate_image
 from src.ui.layout import create_ui, render_info_html, render_status_html
+from src.ui.theme import CUSTOM_CSS, create_studio_theme
 
 
 def format_file_size(size_bytes: int) -> str:
@@ -93,98 +96,84 @@ def main_process(img_path: str) -> GenerationResult:
             return GenerationResult(
                 success=False,
                 glb_path=None,
-                message="Module kết nối AI (src/ai/trellis_client.py) đang được Lê Bá Thi hoàn thiện.",
+                message="Module kết nối AI (src/ai/trellis_client.py) đang được hoàn thiện.",
                 inference_time=inference_time,
                 is_mock=False,
             )
 
 
 def stream_generation(img_path: str):
-    """Bước 1 (Generator): Cập nhật trạng thái real-time trong khung 3D và đồng hồ đếm giờ.
+    """Bước 1 (Generator): Luồng xử lý nền và cập nhật trạng thái thời gian thực.
 
-    QUAN TRỌNG: Hàm generator này TUYỆT ĐỐI KHÔNG cập nhật trực tiếp `model_output` (gr.Model3D).
-    Việc tách `model_output` sang Bước 2 (`render_model_3d` dùng `return` thuần túy qua `.then()`)
-    giúp WebGL Canvas của Babylon.js không bị reset hay sập khung hình khi streaming.
+    Tuân thủ nghiêm ngặt 5 chốt chặn kỹ thuật:
+    - KHÔNG gán model_output vào hàm này để bảo vệ WebGL canvas.
+    - Áp dụng Event-driven DOM update: chỉ render lại HTML box 3D khi có bước mới.
+    - Ô dưới (status_box) chỉ hiển thị duy nhất số giây đếm giờ, không trùng lặp text thông báo.
+    - Khi hoàn tất, yield '' cho model_status_box để gỡ bỏ lớp phủ.
     """
     config.reload_env()
     start_time = time.time()
 
-    # Nhịp khởi đầu (0.0s)
+    # 1. Kiểm tra ảnh rỗng
+    if not img_path:
+        yield (
+            render_status_html("error", "Chưa có ảnh đầu vào", "Vui lòng chọn hoặc kéo thả một bức ảnh vào khung trước khi bắt đầu."),
+            render_info_html(status_msg="[LỖI]: Chưa chọn file ảnh đầu vào."),
+            gr.update(value=None, interactive=False, variant="secondary", label="Chưa có mô hình để tải"),
+            "0.0s (Lỗi)",
+            {"success": False, "glb_path": None},
+        )
+        return
+
+    # 2. Kiểm tra tính hợp lệ của ảnh qua Core Validator
+    is_valid, validation_msg = validate_image(img_path)
+    if not is_valid:
+        yield (
+            render_status_html("error", "Ảnh không hợp lệ", validation_msg),
+            render_info_html(status_msg=f"[LỖI ĐẦU VÀO]: {validation_msg}"),
+            gr.update(value=None, interactive=False, variant="secondary", label="Chưa có mô hình để tải"),
+            "0.0s (Lỗi)",
+            {"success": False, "glb_path": None},
+        )
+        return
+
+    # 3. Khởi tạo trạng thái đang xử lý ban đầu
+    initial_msg = (
+        "[Mock Mode] Đang khởi chạy quy trình giả lập..."
+        if config.MOCK_MODE
+        else "Đang kết nối tới máy chủ Hugging Face ZeroGPU..."
+    )
+    initial_detail = "Đang kiểm tra hàng đợi và tài nguyên"
+
     yield (
-        render_status_html(
-            "processing",
-            "🔍 Đang kiểm tra ảnh đầu vào...",
-            "Xác thực định dạng (JPG/PNG/WEBP) và dung lượng (<= 10MB)",
-        ),
-        render_info_html(status_msg="Đang kiểm định dữ liệu ảnh đầu vào..."),
-        gr.update(
-            value=None,
-            interactive=False,
-            variant="secondary",
-            label="⏳ Đang xử lý mô hình...",
-        ),
-        "0.0s (Đang bắt đầu...)",
+        render_status_html("processing", initial_msg, initial_detail),
+        render_info_html(status_msg="Đang xử lý tạo mô hình 3D..."),
+        gr.update(value=None, interactive=False, variant="secondary", label="Đang tạo mô hình..."),
+        "0.0s",
         None,
     )
 
-    # 1. Kiểm tra ảnh rỗng
-    if not img_path:
-        elapsed = round(time.time() - start_time, 1)
-        err_msg = "Vui lòng tải lên một bức ảnh trước khi bấm tạo 3D!"
-        yield (
-            render_status_html("error", err_msg, "Hãy chọn ảnh ở cột Đầu vào bên trái."),
-            render_info_html(status_msg=f"❌ {err_msg}"),
-            gr.update(
-                value=None,
-                interactive=False,
-                variant="secondary",
-                label="⏳ Chưa có mô hình để tải",
-            ),
-            f"{elapsed:.1f}s (Dừng lại do thiếu ảnh)",
-            {"success": False, "glb_path": None},
-        )
-        return
+    # 4. Hàng đợi giao tiếp luồng
+    event_queue = queue.Queue()
 
-    # 2. Kiểm tra ảnh hợp lệ qua Core Validator
-    is_valid, validation_msg = validate_image(img_path)
-    if not is_valid:
-        elapsed = round(time.time() - start_time, 1)
-        err_msg = f"[LỖI ĐẦU VÀO]: {validation_msg}"
-        yield (
-            render_status_html("error", err_msg, "Vui lòng chọn file ảnh hợp lệ (JPG, PNG, WEBP <= 10MB)."),
-            render_info_html(status_msg=f"❌ {err_msg}"),
-            gr.update(
-                value=None,
-                interactive=False,
-                variant="secondary",
-                label="⏳ Chưa có mô hình để tải",
-            ),
-            f"{elapsed:.1f}s (Dừng lại do lỗi ảnh)",
-            {"success": False, "glb_path": None},
-        )
-        return
-
-    # 3. Chạy tiến trình tạo 3D trên luồng nền (Background Thread) và đẩy trạng thái qua Queue
-    event_queue: queue.Queue = queue.Queue()
-
-    def status_callback(msg: str, detail: str = "") -> None:
+    def status_callback(msg: str, detail: str = ""):
         event_queue.put(("status", msg, detail))
 
-    def worker_thread() -> None:
+    def worker_thread():
         try:
             if config.MOCK_MODE:
                 status_callback(
-                    "⏳ [Mock Mode] Đang phân tích và tách nền ảnh 2D...",
-                    "Mô phỏng bước tiền xử lý vật thể",
+                    "[Mock Mode] Đang nạp mô hình mẫu từ assets/sample_model.glb...",
+                    "Đọc dữ liệu hình học và cấu trúc lưới 3D",
                 )
                 time.sleep(0.5)
                 status_callback(
-                    "⚡ [Mock Mode] Đang dựng cấu trúc lưới 3D từ dữ liệu mẫu...",
+                    "[Mock Mode] Đang dựng cấu trúc lưới 3D từ dữ liệu mẫu...",
                     "Khởi tạo tọa độ đỉnh và bề mặt đa giác (Mesh)",
                 )
                 time.sleep(0.5)
                 status_callback(
-                    "🎨 [Mock Mode] Đang đóng gói file GLB và Texture...",
+                    "[Mock Mode] Đang đóng gói file GLB và Texture...",
                     "Xuất kết quả vào thư mục outputs/",
                 )
                 time.sleep(0.5)
@@ -219,19 +208,21 @@ def stream_generation(img_path: str):
     thread = threading.Thread(target=worker_thread, daemon=True)
     thread.start()
 
-    current_msg = "🌐 Đang kết nối tới máy chủ xử lý 3D..."
-    current_detail = "Đang khởi tạo tiến trình dựng hình"
+    current_msg = initial_msg
+    current_detail = initial_detail
     final_data = None
     error_msg = None
 
-    # Vòng lặp cập nhật đồng hồ Timer (mỗi 0.1s) và trạng thái real-time
+    # Vòng lặp Event-driven DOM update: Chỉ cập nhật box 3D khi có bước mới
     while thread.is_alive() or not event_queue.empty():
+        status_changed = False
         try:
             while True:
                 item = event_queue.get_nowait()
                 if item[0] == "status":
                     current_msg = item[1]
                     current_detail = item[2]
+                    status_changed = True
                 elif item[0] == "done":
                     final_data = item[1:]
                 elif item[0] == "error":
@@ -244,14 +235,12 @@ def stream_generation(img_path: str):
 
         elapsed = time.time() - start_time
         yield (
-            render_status_html(
-                "processing",
-                current_msg,
-                f"{current_detail} • ⏱️ {elapsed:.1f}s",
-            ),
+            render_status_html("processing", current_msg, current_detail)
+            if status_changed
+            else gr.update(),
             gr.update(),
             gr.update(),
-            f"{elapsed:.1f}s (Đang xử lý...)",
+            f"{elapsed:.1f}s",  # Chỉ hiển thị số giây đếm giờ, không trùng lặp text
             None,
         )
         time.sleep(0.1)
@@ -261,28 +250,28 @@ def stream_generation(img_path: str):
     # Xử lý nếu có lỗi từ worker
     if error_msg:
         yield (
-            render_status_html("error", f"Lỗi hệ thống: {error_msg}"),
-            render_info_html(status_msg=f"❌ Lỗi hệ thống: {error_msg}"),
+            render_status_html("error", "Lỗi xử lý", str(error_msg)),
+            render_info_html(status_msg=f"[LỖI]: {error_msg}"),
             gr.update(
                 value=None,
                 interactive=False,
                 variant="secondary",
-                label="⏳ Chưa có mô hình để tải",
+                label="Chưa có mô hình để tải",
             ),
-            f"{total_elapsed:.1f}s (Dừng lại do lỗi)",
+            f"{total_elapsed:.1f}s (Lỗi)",
             {"success": False, "glb_path": None},
         )
         return
 
     if not final_data:
         yield (
-            render_status_html("error", "Không nhận được phản hồi từ tiến trình xử lý."),
-            render_info_html(status_msg="❌ Không nhận được phản hồi từ tiến trình xử lý."),
+            render_status_html("error", "Không nhận được phản hồi", "Tiến trình xử lý không trả về kết quả."),
+            render_info_html(status_msg="[LỖI]: Không nhận được phản hồi từ tiến trình xử lý."),
             gr.update(
                 value=None,
                 interactive=False,
                 variant="secondary",
-                label="⏳ Chưa có mô hình để tải",
+                label="Chưa có mô hình để tải",
             ),
             f"{total_elapsed:.1f}s (Thất bại)",
             {"success": False, "glb_path": None},
@@ -292,13 +281,13 @@ def stream_generation(img_path: str):
     out_glb_path, is_mock, detail_reason = final_data
     if not out_glb_path or not os.path.exists(out_glb_path):
         yield (
-            render_status_html("error", "Không tìm thấy file mô hình 3D kết quả (.glb)."),
-            render_info_html(status_msg="❌ Không tìm thấy file mô hình 3D kết quả (.glb)."),
+            render_status_html("error", "Thiếu file đầu ra", "Không tìm thấy file mô hình 3D (.glb) được xuất."),
+            render_info_html(status_msg="[LỖI]: Không tìm thấy file mô hình 3D kết quả (.glb)."),
             gr.update(
                 value=None,
                 interactive=False,
                 variant="secondary",
-                label="⏳ Chưa có mô hình để tải",
+                label="Chưa có mô hình để tải",
             ),
             f"{total_elapsed:.1f}s (Thất bại)",
             {"success": False, "glb_path": None},
@@ -310,9 +299,9 @@ def stream_generation(img_path: str):
     file_size_str = format_file_size(file_size_bytes)
     file_name = os.path.basename(out_glb_path)
     engine_name = (
-        "Mock Service (Mô phỏng / Dự phòng)"
+        "Mock Service (Mô phỏng)"
         if is_mock
-        else f"Microsoft TRELLIS ({config.HF_SPACE_ID})"
+        else f"TRELLIS 2.0 ({config.HF_SPACE_ID})"
     )
 
     if is_mock:
@@ -323,7 +312,7 @@ def stream_generation(img_path: str):
         else:
             detail = "Hệ thống đang bật chế độ dự phòng do máy chủ AI không phản hồi."
         status_msg = (
-            f"ℹ️ [CHẾ ĐỘ MÔ PHỎNG / DỰ PHÒNG]: Đang sử dụng mô hình 3D mẫu ({config.DEFAULT_SAMPLE_MODEL_PATH}). "
+            f"[CHẾ ĐỘ MÔ PHỎNG / DỰ PHÒNG]: Đang sử dụng mô hình 3D mẫu ({config.DEFAULT_SAMPLE_MODEL_PATH}). "
             f"Chi tiết: {detail}"
         )
     else:
@@ -331,7 +320,7 @@ def stream_generation(img_path: str):
             f"Thành công: Đã tạo mô hình 3D từ mô hình TRELLIS trong {total_elapsed:.1f} giây."
         )
 
-    # Cập nhật bảng Metadata + Timer và chuyển sang Bước 2 (.then) để nạp Model3D
+    # Cập nhật bảng Metadata (giữ nguyên thông báo chi tiết ở box trên) và giải phóng lớp phủ box 3D (trả về '')
     yield (
         "",
         render_info_html(
@@ -346,19 +335,15 @@ def stream_generation(img_path: str):
             value=out_glb_path,
             interactive=True,
             variant="primary",
-            label="⬇️ Tải mô hình 3D (.glb)",
+            label="Tải mô hình 3D",
         ),
-        f"{total_elapsed:.1f}s — {status_msg}",
+        f"{total_elapsed:.1f}s",  # Ô dưới chỉ hiển thị số giây
         {"success": True, "glb_path": out_glb_path},
     )
 
 
 def render_model_3d(state: dict | None):
-    """Bước 2 (Hàm return thuần túy): Nạp file .glb vào gr.Model3D đúng 1 lần duy nhất.
-
-    Cơ chế `return` đơn lẻ này giống 100% với hàm `on_click` ở commit 33985ec gốc trên GitHub,
-    đảm bảo Babylon.js nhận sự kiện `process_completed` sạch và dựng hình 3D chính xác.
-    """
+    """Bước 2 (Hàm return thuần túy): Nạp file .glb vào gr.Model3D đúng 1 lần duy nhất."""
     if not state or not state.get("success") or not state.get("glb_path"):
         return (
             None,
@@ -367,7 +352,7 @@ def render_model_3d(state: dict | None):
                 value=None,
                 interactive=False,
                 variant="secondary",
-                label="⏳ Chưa có mô hình để tải",
+                label="Chưa có mô hình để tải",
             ),
         )
 
@@ -379,7 +364,7 @@ def render_model_3d(state: dict | None):
             value=glb_path,
             interactive=True,
             variant="primary",
-            label="⬇️ Tải mô hình 3D (.glb)",
+            label="Tải mô hình 3D",
         ),
     )
 
@@ -424,7 +409,20 @@ with demo:
 # Chạy ứng dụng
 if __name__ == "__main__":
     demo.queue()
+
+    # Nạp script ASCII Plasma cục bộ
+    ascii_script_path = os.path.join(
+        os.path.dirname(__file__), "src", "ui", "assets", "ascii_plasma.js"
+    )
+    head_parts = []
+    if os.path.exists(ascii_script_path):
+        with open(ascii_script_path, "r", encoding="utf-8") as f:
+            head_parts.append(f"<script>{f.read()}</script>")
+
     demo.launch(
+        theme=create_studio_theme(),
+        css=CUSTOM_CSS,
+        head="".join(head_parts),
         server_name="127.0.0.1",
         server_port=7860,
         allowed_paths=[
