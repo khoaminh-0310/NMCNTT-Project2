@@ -66,8 +66,8 @@ NMCNTT-Project2/
 │       └── assets/
 │           └── ascii_plasma.js # Hiệu ứng hình nền động ASCII Plasma
 │
-├── test_dataset/              # Bộ 10 ảnh chụp đồ vật thực tế Unsplash (bàn, ghế, cốc, xe đồ chơi...)
-│   └── README.md              # Bảng kê chi tiết bản quyền và tác giả Unsplash
+├── test_dataset/              # Bộ 10 ảnh chụp đồ vật thực tế
+│   
 │
 └── tests/                     # Tầng Kiểm thử tự động (100% Passed)
     ├── test_validator.py      # Bộ 13 bài test kiểm thử bộ lọc ảnh và quản lý file
