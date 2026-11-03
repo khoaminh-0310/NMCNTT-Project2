@@ -16,10 +16,11 @@ import time
 import gradio as gr
 
 import config
-from src.ai.trellis_client import run_inference_streaming
+from src.ai.mock_service import run_mock_inference
+from src.ai.trellis_client import generate_3d_from_image, run_inference_streaming
 from src.core.contracts import GenerationResult
 from src.core.file_manager import generate_output_path
-from src.core.validator import validate_image
+from src.core.validator import localize_validation_message, validate_image
 from src.ui.layout import create_ui, render_info_html, render_status_html
 from src.ui.theme import CUSTOM_CSS, create_studio_theme
 
@@ -54,42 +55,38 @@ def main_process(img_path: str) -> GenerationResult:
     # 2. Kiểm tra ảnh hợp lệ qua Core Validator (định dạng, kích thước <= 10MB)
     is_valid, validation_msg = validate_image(img_path)
     if not is_valid:
+        ui_msg = localize_validation_message(validation_msg)
         return GenerationResult(
             success=False,
             glb_path=None,
-            message=f"[LỖI ĐẦU VÀO]: {validation_msg}",
+            message=f"[LỖI ĐẦU VÀO]: {ui_msg}",
             inference_time=0.0,
             is_mock=False,
         )
 
     # 3. Phân nhánh Mock Mode hoặc AI thật dựa trên config.MOCK_MODE
     if config.MOCK_MODE:
-        time.sleep(1.5)
-        inference_time = round(time.time() - start_time, 2)
-
-        sample_asset = config.DEFAULT_SAMPLE_MODEL_PATH
-        if os.path.exists(sample_asset):
-            out_glb_path = generate_output_path("mock_result.glb")
-            shutil.copyfile(sample_asset, out_glb_path)
+        try:
+            out_glb_path, is_mock = run_mock_inference(img_path)
+            inference_time = round(time.time() - start_time, 2)
             return GenerationResult(
                 success=True,
                 glb_path=out_glb_path,
                 message="Đã tải xong mô hình bằng dữ liệu mẫu cục bộ.",
                 inference_time=inference_time,
-                is_mock=True,
+                is_mock=is_mock,
             )
-        else:
+        except Exception as exc:
+            inference_time = round(time.time() - start_time, 2)
             return GenerationResult(
                 success=False,
                 glb_path=None,
-                message="Không tìm thấy file mô hình mẫu (assets/sample_model.glb).",
+                message=str(exc),
                 inference_time=inference_time,
                 is_mock=True,
             )
     else:
         try:
-            from src.ai.trellis_client import generate_3d_from_image
-
             return generate_3d_from_image(img_path)
         except (ImportError, AttributeError):
             inference_time = round(time.time() - start_time, 2)
@@ -128,9 +125,10 @@ def stream_generation(img_path: str):
     # 2. Kiểm tra tính hợp lệ của ảnh qua Core Validator
     is_valid, validation_msg = validate_image(img_path)
     if not is_valid:
+        ui_msg = localize_validation_message(validation_msg)
         yield (
-            render_status_html("error", "Ảnh không hợp lệ", validation_msg),
-            render_info_html(status_msg=f"[LỖI ĐẦU VÀO]: {validation_msg}"),
+            render_status_html("error", "Ảnh không hợp lệ", ui_msg),
+            render_info_html(status_msg=f"[LỖI ĐẦU VÀO]: {ui_msg}"),
             gr.update(value=None, interactive=False, variant="secondary", label="Chưa có mô hình để tải"),
             "0.0s (Lỗi)",
             {"success": False, "glb_path": None},
@@ -162,41 +160,17 @@ def stream_generation(img_path: str):
     def worker_thread():
         try:
             if config.MOCK_MODE:
-                status_callback(
-                    "[Mock Mode] Đang nạp mô hình mẫu từ assets/sample_model.glb...",
-                    "Đọc dữ liệu hình học và cấu trúc lưới 3D",
+                out_glb, is_mock = run_mock_inference(
+                    img_path, status_callback=status_callback
                 )
-                time.sleep(0.5)
-                status_callback(
-                    "[Mock Mode] Đang dựng cấu trúc lưới 3D từ dữ liệu mẫu...",
-                    "Khởi tạo tọa độ đỉnh và bề mặt đa giác (Mesh)",
-                )
-                time.sleep(0.5)
-                status_callback(
-                    "[Mock Mode] Đang đóng gói file GLB và Texture...",
-                    "Xuất kết quả vào thư mục outputs/",
-                )
-                time.sleep(0.5)
-
-                sample_asset = config.DEFAULT_SAMPLE_MODEL_PATH
-                if os.path.exists(sample_asset):
-                    out_glb = generate_output_path("mock_result.glb")
-                    shutil.copyfile(sample_asset, out_glb)
-                    event_queue.put(
-                        (
-                            "done",
-                            out_glb,
-                            True,
-                            "Hệ thống đang chủ động bật chế độ giả lập cục bộ (MOCK_MODE=true).",
-                        )
+                event_queue.put(
+                    (
+                        "done",
+                        out_glb,
+                        is_mock,
+                        "Hệ thống đang chủ động bật chế độ giả lập cục bộ (MOCK_MODE=true).",
                     )
-                else:
-                    event_queue.put(
-                        (
-                            "error",
-                            f"Không tìm thấy file mô hình mẫu ({sample_asset}).",
-                        )
-                    )
+                )
             else:
                 glb_path, is_mock, reason = run_inference_streaming(
                     img_path, status_callback=status_callback
@@ -545,6 +519,5 @@ if __name__ == "__main__":
         allowed_paths=[
             os.path.abspath(config.DEFAULT_OUTPUT_DIR),
             os.path.abspath(config.DEFAULT_ASSETS_DIR),
-            os.path.abspath("."),
         ],
     )

@@ -24,6 +24,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 from PIL import Image
 
 # Automatically resolve and inject project paths whether running inside repo or outside folder
@@ -183,27 +184,43 @@ class TestMockAndAIPipeline(unittest.TestCase):
         self.temp_dir = tempfile.mkdtemp(prefix="test_pipeline_")
         self.temp_img = os.path.join(self.temp_dir, "input.png")
         Image.new("RGB", (64, 64), color="green").save(self.temp_img)
+        self.created_outputs = []
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
+        for out_file in self.created_outputs:
+            if out_file and os.path.exists(out_file):
+                try:
+                    os.remove(out_file)
+                except OSError:
+                    pass
 
     def test_mock_service_returns_valid_model(self):
         """run_mock_inference must return a valid local GLB file with is_mock=True."""
         glb_path, is_mock = run_mock_inference(self.temp_img)
+        self.created_outputs.append(glb_path)
         self.assertTrue(is_mock, "Mock inference must have is_mock=True")
         self.assertTrue(os.path.exists(glb_path), f"Output GLB must exist: {glb_path}")
         self.assertGreater(os.path.getsize(glb_path), 0, "GLB output must not be empty")
 
     def test_generation_result_contract(self):
-        """AI client wrapper must always return GenerationResult with proper types."""
-        result = generate_3d_from_image(self.temp_img)
-        self.assertIsInstance(result, GenerationResult)
-        self.assertTrue(result.success, "Generation must succeed (via AI or Mock fallback)")
-        self.assertIsNotNone(result.glb_path)
-        self.assertTrue(os.path.exists(result.glb_path))  # type: ignore
-        self.assertIsInstance(result.inference_time, float)
-        self.assertGreaterEqual(result.inference_time, 0.0)
-        self.assertIsInstance(result.is_mock, bool)
+        """AI client wrapper must gracefully fall back to mock and return a valid GenerationResult."""
+        with patch(
+            "src.ai.trellis_client._predict_with_timeout",
+            side_effect=RuntimeError("Simulated ZeroGPU quota exceeded"),
+        ):
+            result = generate_3d_from_image(self.temp_img)
+            if result.glb_path:
+                self.created_outputs.append(result.glb_path)
+
+            self.assertIsInstance(result, GenerationResult)
+            self.assertTrue(result.success, "Generation must succeed via Mock fallback")
+            self.assertIsNotNone(result.glb_path)
+            self.assertTrue(os.path.exists(result.glb_path))  # type: ignore
+            self.assertIsInstance(result.inference_time, float)
+            self.assertGreaterEqual(result.inference_time, 0.0)
+            self.assertTrue(result.is_mock)
+            self.assertIn("ZeroGPU", result.message)
 
 
 if __name__ == "__main__":

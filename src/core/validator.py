@@ -56,3 +56,17 @@ def validate_image(image_path: str) -> Tuple[bool, str]:
         return False, "File tai len bi loi hoac khong phai la anh hop le."
 
     return True, "Anh hop le."
+
+
+_UI_MESSAGE_MAP = {
+    "Anh hop le.": "Ảnh hợp lệ.",
+    "Khong tim thay file anh.": "Không tìm thấy file ảnh đầu vào.",
+    "File tai len bi loi hoac khong phai la anh hop le.": "File tải lên bị lỗi hoặc không phải là ảnh hợp lệ.",
+    "Dung luong anh vuot qua 10MB.": "Dung lượng ảnh vượt quá giới hạn 10MB.",
+    "Dinh dang anh khong duoc ho tro (chi nhan JPG, PNG, WEBP).": "Định dạng ảnh không được hỗ trợ (chỉ nhận JPG, PNG, WEBP).",
+}
+
+
+def localize_validation_message(raw_msg: str) -> str:
+    """Convert internal ASCII validation message to accented Vietnamese for UI display."""
+    return _UI_MESSAGE_MAP.get(raw_msg, raw_msg)

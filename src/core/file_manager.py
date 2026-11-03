@@ -53,10 +53,36 @@ def ensure_directory(directory_path: str = DEFAULT_OUTPUT_DIR) -> str:
     return normalized_path
 
 
+def cleanup_old_outputs(
+    output_dir: str = DEFAULT_OUTPUT_DIR,
+    max_files: int = 50,
+) -> None:
+    """Remove oldest generated .glb files when count exceeds max_files."""
+    norm_dir = os.path.normpath(output_dir)
+    if not os.path.isdir(norm_dir):
+        return
+    try:
+        glb_files = [
+            os.path.join(norm_dir, f)
+            for f in os.listdir(norm_dir)
+            if f.lower().endswith(".glb") and os.path.isfile(os.path.join(norm_dir, f))
+        ]
+        if len(glb_files) <= max_files:
+            return
+        glb_files.sort(key=lambda p: os.path.getmtime(p))
+        for old_path in glb_files[: len(glb_files) - max_files]:
+            try:
+                os.remove(old_path)
+            except OSError:
+                pass
+    except OSError:
+        pass
+
+
 def generate_output_path(
     base_filename: str = "result.glb",
     output_dir: str = DEFAULT_OUTPUT_DIR,
-    include_uuid: bool = False,
+    include_uuid: bool = True,
 ) -> str:
     """Generate a unique timestamped file path inside the designated output directory.
 
@@ -71,6 +97,7 @@ def generate_output_path(
         Normalized relative/absolute path to the target output file.
     """
     target_dir = ensure_directory(output_dir)
+    cleanup_old_outputs(target_dir)
     clean_name = sanitize_filename(base_filename)
     name_root, ext = os.path.splitext(clean_name)
     if not ext:
