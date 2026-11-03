@@ -14,15 +14,6 @@
 
 Ứng dụng cho phép người dùng phổ thông dễ dàng biến một bức ảnh chụp vật thể 2D thành mô hình 3D hoàn chỉnh (`.glb`) mà không cần cài đặt môi trường đồ họa phức tạp hay sở hữu phần cứng GPU đắt tiền.
 
-### 🌟 Điểm nổi bật bám sát code thực tế
-1. **Mô hình AI TRELLIS.2:** Sử dụng không gian chính thức `microsoft/TRELLIS.2`, hỗ trợ cơ chế đa endpoint linh hoạt (single-pass `/generate_and_extract_glb` hoặc pipeline 3 bước `/preprocess_image` $\rightarrow$ `/image_to_3d` $\rightarrow$ `/extract_glb`).
-2. **Âm thanh thông báo Apple Pay:** Tự động phát âm thanh ding nhẹ đặc trưng (`assets/applepay.mp3`) với độ trễ 0ms (nhúng Base64 Audio Data URI trực tiếp vào trình duyệt) ngay khi mô hình 3D hoàn tất hiển thị.
-3. **Giao diện Dimensional Studio (Bento Grid):** Giao diện Dark theme kính mờ cao cấp, hiệu ứng chữ Shimmering Text, nút bấm Ripple Wave, hình nền động ASCII Plasma và Favicon nhúng Base64 chống cache.
-4. **Trình xem 3D tương tác (360° Babylon.js Viewer):** Tích hợp component `gr.Model3D`, cho phép xoay, phóng to, thu nhỏ và quan sát vật thể đa chiều trực tiếp trên trình duyệt.
-5. **Streaming Generator 2 bước & Timer thời gian thực:** Cơ chế xử lý 2 bước độc lập (Bước 1 cập nhật tiến trình và đếm giây 0.1s; Bước 2 nạp mô hình GLB và kích hoạt âm thanh) giúp chống crash WebGL canvas.
-6. **Kiểm định an toàn (Security & Validator):** Kiểm tra chặt chẽ định dạng ảnh (`JPG`, `PNG`, `WEBP`), giới hạn kích thước $\le$ **10MB**, chặn file text giả mạo và khử tấn công Path Traversal (`../../`).
-7. **Minh bạch học thuật (Mock Mode):** Khi mất mạng Wi-Fi hoặc API hết quota ZeroGPU trong ngày, hệ thống tự động chuyển sang mô hình mẫu dự phòng (`assets/sample_model.glb`) kèm nhãn cảnh báo rõ ràng.
-
 ---
 
 ## 2. Phân Công Trách Nhiệm Nhóm
