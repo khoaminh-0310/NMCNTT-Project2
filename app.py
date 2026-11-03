@@ -404,6 +404,7 @@ with demo:
         fn=render_model_3d,
         inputs=[result_state],
         outputs=[model_output, model_status_box, btn_download],
+        js="() => { if (window.playCompletionSound) window.playCompletionSound(); }",
     )
 
 # Chạy ứng dụng
@@ -429,6 +430,42 @@ if __name__ == "__main__":
     if os.path.exists(favicon_png_path):
         with open(favicon_png_path, "rb") as f:
             fav_png_uri = f"data:image/png;base64,{base64.b64encode(f.read()).decode('ascii')}"
+
+    # Nạp âm thanh Apple Pay thành Base64 Data URI để phát tức thì với độ trễ 0ms khi xong 3D
+    audio_path = os.path.join(assets_dir, "applepay.mp3")
+    audio_data_uri = ""
+    if os.path.exists(audio_path):
+        with open(audio_path, "rb") as af:
+            audio_data_uri = f"data:audio/mp3;base64,{base64.b64encode(af.read()).decode('ascii')}"
+
+    head_parts.append(f"""
+    <script>
+    (() => {{
+        const audioUri = "{audio_data_uri}";
+        let audioPlayer = null;
+        if (audioUri) {{
+            try {{
+                audioPlayer = new Audio(audioUri);
+                audioPlayer.preload = "auto";
+            }} catch (e) {{}}
+        }}
+
+        window.playCompletionSound = function() {{
+            try {{
+                if (audioPlayer) {{
+                    audioPlayer.currentTime = 0;
+                    const p = audioPlayer.play();
+                    if (p && typeof p.catch === "function") {{
+                        p.catch(err => console.warn("Audio playback note:", err));
+                    }}
+                }}
+            }} catch (err) {{
+                console.warn("Audio trigger error:", err);
+            }}
+        }};
+    }})();
+    </script>
+    """)
 
     if fav_png_uri:
         head_parts.append(f'<link rel="icon" type="image/png" sizes="32x32" href="{fav_png_uri}">')
