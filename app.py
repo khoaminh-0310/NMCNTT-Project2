@@ -509,6 +509,9 @@ if __name__ == "__main__":
         with open(ascii_script_path, "r", encoding="utf-8") as f:
             head_parts.append(f"<script>{f.read()}</script>")
 
+    # Tich hop Google Model Viewer cho mo hinh 3D qua khe dong tren Header (Chuan Google CDN)
+    head_parts.append('<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>')
+
     demo.launch(
         theme=create_studio_theme(),
         css=CUSTOM_CSS,

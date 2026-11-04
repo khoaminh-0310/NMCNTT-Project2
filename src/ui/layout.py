@@ -6,6 +6,7 @@ Team: ae cây khế - Course: CSC00004 - Class: 26C05.
 Strictly adheres to Section 4 & 5.1 of 'Tài liệu kỹ thuật project AI' and Cẩm nang UI.
 """
 
+import base64
 import html
 import os
 import gradio as gr
@@ -239,6 +240,14 @@ def render_info_html(
 
 def create_ui():
     """Hàm dựng giao diện 2 cột theo đúng Wireframe và Cẩm nang UI."""
+    # Nạp trực tiếp mô hình 3D quả khế dưới dạng Base64 Data URI để hiển thị siêu tốc và chống lỗi MIME/CORS
+    glb_path = os.path.join(os.path.dirname(__file__), "..", "..", "assets", "qua_khe_3d_xoay_cheo.glb")
+    starfruit_b64_src = ""
+    if os.path.exists(glb_path):
+        with open(glb_path, "rb") as f:
+            starfruit_b64_src = "data:model/gltf-binary;base64," + base64.b64encode(f.read()).decode("ascii")
+    else:
+        starfruit_b64_src = "/file=assets/qua_khe_3d_xoay_cheo.glb"
     with gr.Blocks(title="Dimensional AI Studio", theme=create_studio_theme(), css=CUSTOM_CSS) as demo:
         # Nền ASCII Plasma chạy ngầm full-screen (-z-10)
         gr.HTML(
@@ -254,7 +263,22 @@ def create_ui():
                     {render_shimmer_title("Dimensional AI Studio")}
                 </div>
                 <div class="studio-subtitle">
-                    Tái tạo mô hình 3D từ ảnh 2D đơn lẻ • Nhóm ae cây khế - Lớp 26C05 - CSC00004
+                    <span class="sub-group-prefix">Nhóm ae cây</span>
+                    <span class="sub-group-khe">khế</span>
+                    <span class="sub-starfruit-3d">
+                        <model-viewer
+                            src="{starfruit_b64_src}"
+                            autoplay
+                            animation-name="Spin_Around_Square_Diagonal"
+                            disable-zoom
+                            disable-pan
+                            disable-tap
+                            interaction-prompt="none"
+                            shadow-intensity="0"
+                            exposure="1.15"
+                            class="starfruit-model"
+                        ></model-viewer>
+                    </span>
                 </div>
             </div>
             <a href="https://github.com/khoaminh-0310/NMCNTT-Project2" target="_blank" rel="noopener noreferrer" class="github-repo-btn">

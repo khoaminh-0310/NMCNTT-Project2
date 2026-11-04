@@ -159,13 +159,13 @@ body {
 
 /* Tiêu đề chính Dimensional AI Studio - Chuẩn Animate UI Shimmering Text */
 .studio-title-text {
-    font-size: 24px;
-    font-weight: 700;
-    letter-spacing: -0.025em;
+    font-size: 34px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
     display: inline-flex;
     align-items: center;
     color: #fafafa;
-    line-height: 1.25;
+    line-height: 1.2;
 }
 
 .shimmer-char {
@@ -217,9 +217,47 @@ body {
 }
 
 .studio-subtitle {
-    font-size: 13px;
-    color: #a1a1aa;
-    line-height: 1.4;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px;
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1 !important;
+    letter-spacing: 0.01em;
+}
+
+.sub-group-prefix {
+    color: #8B5CF6 !important;
+    font-weight: 600;
+}
+
+.sub-group-khe {
+    color: #F9CF07 !important;
+    font-weight: 700;
+    text-shadow: 0 0 10px rgba(249, 207, 7, 0.45);
+}
+
+.sub-starfruit-3d {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 34px;
+    height: 34px;
+    line-height: 1;
+    margin-left: 2px;
+}
+
+.sub-starfruit-3d model-viewer {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    background-color: transparent !important;
+    --poster-color: transparent !important;
+    outline: none !important;
+    border: none !important;
+    display: block;
+    transform: scaleX(-1);
 }
 
 .github-repo-btn {
