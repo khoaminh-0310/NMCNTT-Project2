@@ -20,7 +20,7 @@
 
 | STT | Thành viên | MSSV | Vai trò chính | Phạm vi phụ trách thực tế trong Code |
 | :---: | :--- | :---: | :--- | :--- |
-| **1** | **Trần Minh Khoa** | **26127229** | **Nhóm trưởng & Điều phối** | - Quản lý Git repository, cấp quyền, duyệt và merge code.<br>- Phụ trách toàn bộ tài liệu dự án: `README.md`, `.gitignore`, `docs/`.<br>- Tổng hợp Slide thuyết trình bảo vệ và Báo cáo đồ án cuối kỳ. |
+| **1** | **Trần Minh Khoa** | **26127229** | **Điều phối** | - Quản lý Git repository, cấp quyền, duyệt và merge code.<br>- Phụ trách toàn bộ tài liệu dự án: `README.md`, `.gitignore`, `docs/`.<br>- Tổng hợp Slide thuyết trình bảo vệ và Báo cáo đồ án cuối kỳ. |
 | **2** | **Lê Bá Thi** | **26127431** | **Kết nối AI & Inference** | - Phụ trách module `src/ai/`: viết [`trellis_client.py`](src/ai/trellis_client.py) kết nối API Hugging Face `microsoft/TRELLIS.2`.<br>- Xây dựng dịch vụ giả lập [`mock_service.py`](src/ai/mock_service.py).<br>- Lập trình cơ chế giám sát hàng đợi ZeroGPU và tự động Fallback sang Mock khi lỗi mạng/hết quota. |
 | **3** | **Nguyễn Hồng Bảo Trân** | **26127470** | **Giao diện Web (UI/UX)** | - Phụ trách module `src/ui/`: thiết kế bố cục Bento Grid trong [`layout.py`](src/ui/layout.py) và CSS Studio trong [`theme.py`](src/ui/theme.py).<br>- Tích hợp component `gr.Model3D`, bảng Metadata và hiệu ứng âm thanh Apple Pay trong [`app.py`](app.py).<br>- Xử lý luồng sự kiện 2 bước (Generator Streaming & Render 3D). |
 | **4** | **Trịnh Duy Khoa** | **26127230** | **Xử lý Dữ liệu & Hệ thống** | - Phụ trách module `src/core/`: viết bộ kiểm định ảnh đầu vào [`validator.py`](src/core/validator.py) chặn file quá 10MB/sai định dạng.<br>- Viết [`file_manager.py`](src/core/file_manager.py) tạo đường dẫn an toàn chống tấn công Path Traversal.<br>- Thiết lập cấu hình hệ thống [`config.py`](config.py) và hợp đồng dữ liệu chuẩn [`contracts.py`](src/core/contracts.py). |
@@ -166,6 +166,6 @@ pytest tests/ -v
 ## 6. Tính Trung Thực Học Thuật & Chế Độ Mock Mode
 
 Theo tiêu chí đánh giá của môn học, ứng dụng cam kết tính trung thực tuyệt đối trong quá trình báo cáo và bảo vệ đồ án:
-* **Khi AI chạy thật (`is_mock = False`):** Giao diện hiển thị nhãn màu xanh lá: `✅ AI TRELLIS 2.0 (microsoft/TRELLIS.2)` cùng thời gian xử lý thực tế từ GPU máy chủ.
-* **Khi ở chế độ Mock (`is_mock = True`):** Giao diện tự động hiển thị nhãn cảnh báo rõ ràng: `ℹ️ Chế độ Mô phỏng / Dự phòng` và thông báo nguồn gốc:
+* **Khi AI chạy thật (`is_mock = False`):** Giao diện hiển thị nhãn màu xanh lá: `AI TRELLIS 2.0 (microsoft/TRELLIS.2)` cùng thời gian xử lý thực tế từ GPU máy chủ.
+* **Khi ở chế độ Mock (`is_mock = True`):** Giao diện tự động hiển thị nhãn cảnh báo rõ ràng: `Chế độ Mô phỏng / Dự phòng` và thông báo nguồn gốc:
   *`[CHẾ ĐỘ MÔ PHỎNG / DỰ PHÒNG]: Đang sử dụng mô hình 3D mẫu (assets/sample_model.glb) do hệ thống đang bật chế độ dự phòng hoặc máy chủ AI bận/hết quota ZeroGPU.`*
